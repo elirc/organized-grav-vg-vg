@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f6f2;
+  --panel: #fffbef;
+  --ink: #101010;
+  --accent: #114b5f;
+  --accent-soft: #2f7f8f;
+  --line: #d7d2c8;
+  --danger: #a23b3b;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 10%, #d8ebe6 0%, transparent 40%),
+    radial-gradient(circle at 90% 20%, #f6dccf 0%, transparent 45%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-space-grotesk), sans-serif;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+.panel {
+  background: color-mix(in oklab, var(--panel) 92%, #fff 8%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.55rem 0.75rem;
+  width: 100%;
+}
+
+.button-primary {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.6rem 0.95rem;
+  font-weight: 600;
+  transition: background-color 150ms ease;
+}
+
+.button-primary:hover {
+  background: var(--accent-soft);
+}
+
+.button-secondary {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem 0.95rem;
+}
+
+.tag {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 0.1rem 0.6rem;
+  font-size: 0.75rem;
+  font-family: var(--font-ibm-plex-mono), monospace;
+}
+
+.danger {
+  color: var(--danger);
+}

@@ -1,0 +1,1097 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  CHURNED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum RoleType {
+  PLATFORM_ADMIN
+  CLIENT_ADMIN
+  CLIENT_MANAGER
+  EMPLOYEE
+  CONTRACTOR
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum EmploymentStatus {
+  ONBOARDING
+  ACTIVE
+  ON_LEAVE
+  TERMINATING
+  TERMINATED
+}
+
+enum OnboardingStatus {
+  INVITED
+  IN_PROGRESS
+  PENDING_REVIEW
+  APPROVED
+  COMPLETED
+}
+
+enum ContractorStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum ContractType {
+  EMPLOYMENT
+  CONTRACTOR
+  AMENDMENT
+  NDA
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  SENT
+  VIEWED
+  SIGNED
+  ACTIVE
+  AMENDED
+  TERMINATED
+}
+
+enum PayFrequency {
+  MONTHLY
+  SEMI_MONTHLY
+  BI_WEEKLY
+  WEEKLY
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  CALCULATING
+  PENDING_APPROVAL
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PayrollItemStatus {
+  PENDING
+  CALCULATED
+  APPROVED
+  PAID
+  FAILED
+}
+
+enum TaxType {
+  INCOME
+  SOCIAL_SECURITY
+  MEDICARE
+  UNEMPLOYMENT
+  PENSION
+  LOCAL
+  OTHER
+}
+
+enum TaxPaidBy {
+  EMPLOYEE
+  EMPLOYER
+  BOTH
+}
+
+enum TaxCalculationType {
+  PROGRESSIVE_BRACKET
+  FLAT_RATE
+  FLAT_AMOUNT
+  WAGE_BASE_CAP
+}
+
+enum ExchangeRateSource {
+  MANUAL
+  API
+}
+
+enum BenefitType {
+  HEALTH_INSURANCE
+  DENTAL
+  VISION
+  LIFE_INSURANCE
+  DISABILITY
+  RETIREMENT
+  TRANSPORT
+  MEAL
+  WELLNESS
+  OTHER
+}
+
+enum BenefitEnrollmentStatus {
+  ENROLLED
+  WAIVED
+  TERMINATED
+}
+
+enum AccrualCadence {
+  DAILY
+  MONTHLY
+  YEARLY
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+enum TimeEntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DocumentCategory {
+  IDENTITY
+  CONTRACT
+  TAX
+  BANKING
+  BENEFITS
+  COMPLIANCE
+  PAYSLIP
+  INVOICE
+  TERMINATION
+  OTHER
+}
+
+enum ComplianceDocumentStatus {
+  PENDING
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum NotificationType {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationCategory {
+  ONBOARDING
+  PAYROLL
+  LEAVE
+  COMPLIANCE
+  BILLING
+  SYSTEM
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum IntegrationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum IntegrationLogStatus {
+  SUCCESS
+  FAILED
+}
+
+enum TerminationStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum DomainEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  DEAD_LETTER
+}
+
+model Organization {
+  id                  String             @id @default(cuid())
+  name                String
+  legalName           String
+  taxId               String?
+  industry            String?
+  companySize         String?
+  headquartersCountry String
+  headquartersAddress String?
+  billingEmail        String
+  stripeCustomerId    String?
+  defaultCurrency     String             @default("USD")
+  status              OrganizationStatus @default(ONBOARDING)
+  settings            Json?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  users                User[]
+  roles                Role[]
+  invitations          Invitation[]
+  employees            Employee[]
+  contractors          Contractor[]
+  contractorInvoices   ContractorInvoice[]
+  contracts            Contract[]
+  contractTemplates    ContractTemplate[]
+  payrollRuns          PayrollRun[]
+  benefitsPackages     BenefitsPackage[]
+  benefitEnrollments   BenefitEnrollment[]
+  leavePolicies        LeavePolicy[]
+  leaveBalances        LeaveBalance[]
+  leaveRequests        LeaveRequest[]
+  timeEntries          TimeEntry[]
+  complianceDocuments  ComplianceDocument[]
+  clientInvoices       ClientInvoice[]
+  documents            Document[]
+  webhookSubscriptions WebhookSubscription[]
+  integrations         Integration[]
+  auditLogs            AuditLog[]
+  terminations         Termination[]
+  domainEvents         DomainEvent[]
+  UserRole             UserRole[]
+  IntegrationLog       IntegrationLog[]
+
+  @@index([status])
+}
+
+model User {
+  id                  String     @id @default(cuid())
+  organizationId      String?
+  email               String     @unique
+  passwordHash        String?
+  firstName           String
+  lastName            String
+  phone               String?
+  mfaEnabled          Boolean    @default(false)
+  mfaSecret           String?
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  userRoles    UserRole[]
+  invitations  Invitation[]  @relation("InvitationInvitedBy")
+  employee     Employee?
+  contractor   Contractor?
+
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  uploadedDocuments       Document[]               @relation("DocumentUploadedBy")
+
+  approvedPayrollRuns  PayrollRun[]  @relation("PayrollApprovedBy")
+  payrollItemsApproved PayrollItem[] @relation("PayrollItemApprovedBy")
+
+  approvedLeaveRequests LeaveRequest[] @relation("LeaveApprovedBy")
+  approvedTimeEntries   TimeEntry[]    @relation("TimeApprovedBy")
+
+  createdContracts  Contract[] @relation("ContractCreatedBy")
+  approvedContracts Contract[] @relation("ContractApprovedBy")
+
+  initiatedTerminations Termination[] @relation("TerminationInitiatedBy")
+
+  auditLogs AuditLog[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model Role {
+  id             String    @id @default(cuid())
+  organizationId String?
+  name           String
+  type           RoleType?
+  isSystem       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+  invitations     Invitation[]
+
+  @@unique([organizationId, name])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id             String   @id @default(cuid())
+  userId         String
+  roleId         String
+  organizationId String?
+  createdAt      DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, roleId, organizationId])
+  @@index([organizationId])
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  organizationId String
+  roleId         String
+  invitedById    String
+  email          String
+  token          String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id])
+  invitedBy    User         @relation("InvitationInvitedBy", fields: [invitedById], references: [id])
+
+  @@index([organizationId, status])
+}
+
+model Employee {
+  id                String           @id @default(cuid())
+  organizationId    String
+  userId            String?          @unique
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime?
+  nationality       String?
+  personalEmail     String
+  workEmail         String?
+  phone             String?
+  employmentCountry String
+  jobTitle          String
+  department        String?
+  managerId         String?
+  startDate         DateTime
+  endDate           DateTime?
+  status            EmploymentStatus @default(ONBOARDING)
+  onboardingStatus  OnboardingStatus @default(INVITED)
+  complianceScore   Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                User?                @relation(fields: [userId], references: [id])
+  manager             Employee?            @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports             Employee[]           @relation("EmployeeManager")
+  onboardingChecklist OnboardingChecklist?
+  compensations       Compensation[]
+  contracts           Contract[]
+  payrollItems        PayrollItem[]
+  benefitEnrollments  BenefitEnrollment[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  timeEntries         TimeEntry[]
+  complianceDocuments ComplianceDocument[]
+  documents           Document[]
+  terminations        Termination[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, managerId])
+}
+
+model OnboardingChecklist {
+  id          String    @id @default(cuid())
+  employeeId  String    @unique
+  items       Json
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Compensation {
+  id            String       @id @default(cuid())
+  employeeId    String
+  amountMinor   BigInt
+  currency      String
+  payFrequency  PayFrequency
+  effectiveDate DateTime
+  previousId    String?
+  isCurrent     Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  previous Compensation?  @relation("CompensationPrevious", fields: [previousId], references: [id])
+  next     Compensation[] @relation("CompensationPrevious")
+  worker   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, isCurrent])
+}
+
+model Contractor {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  userId              String?          @unique
+  firstName           String
+  lastName            String
+  email               String
+  country             String
+  status              ContractorStatus @default(ONBOARDING)
+  onboardingStatus    OnboardingStatus @default(INVITED)
+  classificationScore Int              @default(0)
+  classificationRisk  String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                User?                @relation(fields: [userId], references: [id])
+  invoices            ContractorInvoice[]
+  contracts           Contract[]
+  complianceDocuments ComplianceDocument[]
+  documents           Document[]
+
+  @@index([organizationId, status])
+}
+
+model ContractorInvoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  contractorId   String
+  periodStart    DateTime
+  periodEnd      DateTime
+  amountMinor    BigInt
+  currency       String
+  status         InvoiceStatus @default(DRAFT)
+  notes          String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contractor   Contractor   @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+}
+
+model ContractTemplate {
+  id             String       @id @default(cuid())
+  organizationId String?
+  name           String
+  countryCode    String?
+  type           ContractType
+  version        Int
+  content        String
+  lockedSections Json?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  contracts    Contract[]
+
+  @@unique([organizationId, name, version])
+  @@index([organizationId, type, countryCode])
+}
+
+model Contract {
+  id                String         @id @default(cuid())
+  organizationId    String
+  employeeId        String?
+  contractorId      String?
+  templateId        String?
+  templateVersion   Int?
+  type              ContractType
+  renderedContent   String
+  customTerms       Json?
+  status            ContractStatus @default(DRAFT)
+  sentAt            DateTime?
+  viewedAt          DateTime?
+  signedAt          DateTime?
+  signatureData     Json?
+  effectiveDate     DateTime?
+  previousVersionId String?
+  createdById       String
+  approvedById      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee        Employee?         @relation(fields: [employeeId], references: [id])
+  contractor      Contractor?       @relation(fields: [contractorId], references: [id])
+  template        ContractTemplate? @relation(fields: [templateId], references: [id])
+  previousVersion Contract?         @relation("ContractAmendment", fields: [previousVersionId], references: [id])
+  amendments      Contract[]        @relation("ContractAmendment")
+  createdBy       User              @relation("ContractCreatedBy", fields: [createdById], references: [id])
+  approvedBy      User?             @relation("ContractApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([employeeId])
+  @@index([contractorId])
+}
+
+model PayrollRun {
+  id                     String           @id @default(cuid())
+  organizationId         String
+  periodStart            DateTime
+  periodEnd              DateTime
+  payDate                DateTime
+  status                 PayrollRunStatus @default(DRAFT)
+  totalGrossMinor        BigInt?
+  totalNetMinor          BigInt?
+  totalEmployerCostMinor BigInt?
+  currency               String
+  approvedById           String?
+  approvedAt             DateTime?
+  processedAt            DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvedBy    User?          @relation("PayrollApprovedBy", fields: [approvedById], references: [id])
+  items         PayrollItem[]
+  exchangeRates ExchangeRate[]
+  terminations  Termination[]  @relation("TerminationFinalPayroll")
+
+  @@unique([organizationId, periodStart, periodEnd])
+  @@index([organizationId, status])
+}
+
+model PayrollItem {
+  id                          String            @id @default(cuid())
+  payrollRunId                String
+  employeeId                  String
+  baseSalaryMinor             BigInt
+  overtimeMinor               BigInt            @default(0)
+  bonusMinor                  BigInt            @default(0)
+  commissionMinor             BigInt            @default(0)
+  allowancesMinor             BigInt            @default(0)
+  grossPayMinor               BigInt
+  preTaxDeductions            Json
+  taxableIncomeMinor          BigInt
+  taxes                       Json
+  postTaxDeductions           Json
+  totalEmployeeTaxMinor       BigInt
+  totalEmployerTaxMinor       BigInt
+  netPayMinor                 BigInt
+  currency                    String
+  exchangeRate                Decimal?          @db.Decimal(20, 10)
+  netPayInClientCurrencyMinor BigInt?
+  status                      PayrollItemStatus @default(PENDING)
+  errorReason                 String?
+  payslipUrl                  String?
+  ytdGrossMinor               BigInt
+  ytdTaxMinor                 BigInt
+  approvedById                String?
+  approvedAt                  DateTime?
+  paidAt                      DateTime?
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+  approvedBy User?      @relation("PayrollItemApprovedBy", fields: [approvedById], references: [id])
+
+  @@unique([payrollRunId, employeeId])
+  @@index([status])
+}
+
+model TaxRule {
+  id               String             @id @default(cuid())
+  countryCode      String
+  regionCode       String?
+  taxType          TaxType
+  paidBy           TaxPaidBy
+  calculationType  TaxCalculationType
+  brackets         Json
+  wageBaseCapMinor BigInt?
+  effectiveDate    DateTime
+  expirationDate   DateTime?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([countryCode, regionCode, isActive])
+}
+
+model ExchangeRate {
+  id           String             @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal            @db.Decimal(20, 10)
+  source       ExchangeRateSource
+  capturedAt   DateTime           @default(now())
+  payrollRunId String?
+
+  payrollRun PayrollRun? @relation(fields: [payrollRunId], references: [id], onDelete: SetNull)
+
+  @@index([fromCurrency, toCurrency, capturedAt])
+}
+
+model BenefitsPackage {
+  id             String   @id @default(cuid())
+  organizationId String?
+  countryCode    String?
+  name           String
+  description    String?
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  items        BenefitItem[]
+
+  @@index([organizationId, countryCode, isActive])
+}
+
+model BenefitItem {
+  id                String      @id @default(cuid())
+  packageId         String
+  type              BenefitType
+  name              String
+  description       String?
+  employeeCostMinor BigInt      @default(0)
+  employerCostMinor BigInt      @default(0)
+  isStatutory       Boolean     @default(false)
+  isOptional        Boolean     @default(true)
+  metadata          Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  package     BenefitsPackage     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  enrollments BenefitEnrollment[]
+}
+
+model BenefitEnrollment {
+  id                String                  @id @default(cuid())
+  organizationId    String
+  employeeId        String
+  benefitItemId     String
+  status            BenefitEnrollmentStatus @default(ENROLLED)
+  coverageStart     DateTime
+  coverageEnd       DateTime?
+  employeeCostMinor BigInt                  @default(0)
+  employerCostMinor BigInt                  @default(0)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  benefitItem  BenefitItem  @relation(fields: [benefitItemId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, benefitItemId])
+  @@index([organizationId, status])
+}
+
+model LeavePolicy {
+  id                 String         @id @default(cuid())
+  organizationId     String?
+  countryCode        String?
+  name               String
+  leaveType          String
+  accrualRate        Decimal        @db.Decimal(10, 4)
+  accrualCadence     AccrualCadence @default(MONTHLY)
+  carryOverLimitDays Decimal?       @db.Decimal(10, 2)
+  maxBalanceDays     Decimal?       @db.Decimal(10, 2)
+  requiresApproval   Boolean        @default(true)
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  organization Organization?  @relation(fields: [organizationId], references: [id])
+  balances     LeaveBalance[]
+  requests     LeaveRequest[]
+
+  @@index([organizationId, countryCode, isActive])
+}
+
+model LeaveBalance {
+  id             String    @id @default(cuid())
+  organizationId String
+  employeeId     String
+  policyId       String
+  balanceDays    Decimal   @db.Decimal(10, 2)
+  usedDays       Decimal   @default(0) @db.Decimal(10, 2)
+  pendingDays    Decimal   @default(0) @db.Decimal(10, 2)
+  lastAccruedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policy       LeavePolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, policyId])
+  @@index([organizationId])
+}
+
+model LeaveRequest {
+  id             String             @id @default(cuid())
+  organizationId String
+  employeeId     String
+  policyId       String
+  startDate      DateTime
+  endDate        DateTime
+  totalDays      Decimal            @db.Decimal(10, 2)
+  status         LeaveRequestStatus @default(PENDING)
+  reason         String?
+  managerComment String?
+  approvedById   String?
+  submittedAt    DateTime           @default(now())
+  decidedAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policy       LeavePolicy  @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  approvedBy   User?        @relation("LeaveApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([employeeId, startDate])
+}
+
+model TimeEntry {
+  id             String          @id @default(cuid())
+  organizationId String
+  employeeId     String
+  date           DateTime
+  hours          Decimal         @db.Decimal(5, 2)
+  projectCode    String?
+  description    String?
+  status         TimeEntryStatus @default(DRAFT)
+  submittedAt    DateTime?
+  approvedById   String?
+  approvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approvedBy   User?        @relation("TimeApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([employeeId, date])
+}
+
+model CountryConfig {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  currency          String
+  employmentRules   Json?
+  taxDefaults       Json?
+  requiredDocuments Json?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  complianceDocuments ComplianceDocument[]
+}
+
+model ComplianceDocument {
+  id             String                   @id @default(cuid())
+  organizationId String
+  employeeId     String?
+  contractorId   String?
+  countryCode    String
+  category       DocumentCategory
+  name           String
+  documentId     String?
+  issuedAt       DateTime?
+  expiresAt      DateTime?
+  status         ComplianceDocumentStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee?     @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  contractor   Contractor?   @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  country      CountryConfig @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+  document     Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([countryCode, expiresAt])
+}
+
+model PricingPlan {
+  id                      String   @id @default(cuid())
+  name                    String   @unique
+  description             String?
+  baseMonthlyMinor        BigInt
+  perEmployeeMonthlyMinor BigInt
+  currency                String
+  features                Json?
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  invoices ClientInvoice[]
+}
+
+model ClientInvoice {
+  id              String        @id @default(cuid())
+  organizationId  String
+  planId          String?
+  periodStart     DateTime
+  periodEnd       DateTime
+  issueDate       DateTime
+  dueDate         DateTime
+  status          InvoiceStatus @default(DRAFT)
+  currency        String
+  subtotalMinor   BigInt
+  taxMinor        BigInt        @default(0)
+  totalMinor      BigInt
+  paidAt          DateTime?
+  stripeInvoiceId String?
+  lineItems       Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         PricingPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+}
+
+model Document {
+  id             String           @id @default(cuid())
+  organizationId String?
+  employeeId     String?
+  contractorId   String?
+  uploadedById   String
+  category       DocumentCategory
+  fileName       String
+  mimeType       String
+  sizeBytes      Int
+  storageKey     String           @unique
+  url            String?
+  checksum       String?
+  isEncrypted    Boolean          @default(true)
+  metadata       Json?
+  uploadedAt     DateTime         @default(now())
+  archivedAt     DateTime?
+  deletedAt      DateTime?
+
+  organization        Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  employee            Employee?            @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  contractor          Contractor?          @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  uploadedBy          User                 @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  complianceDocuments ComplianceDocument[]
+
+  @@index([organizationId, category])
+}
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String
+  type      NotificationType
+  category  NotificationCategory
+  title     String
+  body      String
+  actionUrl String?
+  isRead    Boolean              @default(false)
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model NotificationPreference {
+  id        String               @id @default(cuid())
+  userId    String
+  category  NotificationCategory
+  inApp     Boolean              @default(true)
+  email     Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+model Integration {
+  id             String            @id @default(cuid())
+  organizationId String
+  provider       String
+  config         Json
+  status         IntegrationStatus @default(DISCONNECTED)
+  lastSyncAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  logs         IntegrationLog[]
+
+  @@index([organizationId, provider])
+}
+
+model WebhookSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  url            String
+  events         String[]
+  secret         String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  logs         IntegrationLog[]
+}
+
+model IntegrationLog {
+  id             String               @id @default(cuid())
+  integrationId  String?
+  webhookId      String?
+  organizationId String?
+  direction      IntegrationDirection
+  event          String
+  payload        Json
+  status         IntegrationLogStatus
+  errorMessage   String?
+  createdAt      DateTime             @default(now())
+
+  integration  Integration?         @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  webhook      WebhookSubscription? @relation(fields: [webhookId], references: [id], onDelete: SetNull)
+  organization Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, event])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  resourceType   String
+  resourceId     String
+  changes        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, action, createdAt])
+}
+
+model Termination {
+  id                String            @id @default(cuid())
+  organizationId    String
+  employeeId        String
+  initiatedById     String
+  effectiveDate     DateTime
+  reason            String
+  status            TerminationStatus @default(DRAFT)
+  noticeDays        Int?
+  severanceMinor    BigInt?
+  finalPayrollRunId String?
+  checklist         Json?
+  completedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee        Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  initiatedBy     User         @relation("TerminationInitiatedBy", fields: [initiatedById], references: [id])
+  finalPayrollRun PayrollRun?  @relation("TerminationFinalPayroll", fields: [finalPayrollRunId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+}
+
+model DomainEvent {
+  id             String            @id @default(cuid())
+  organizationId String?
+  eventType      String
+  aggregateType  String
+  aggregateId    String
+  payload        Json
+  status         DomainEventStatus @default(PENDING)
+  attempts       Int               @default(0)
+  availableAt    DateTime          @default(now())
+  processedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([status, availableAt])
+  @@index([organizationId, eventType])
+}
+
+model IdempotencyKey {
+  id           String    @id @default(cuid())
+  scope        String
+  key          String
+  requestHash  String
+  statusCode   Int?
+  responseBody Json?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([scope, key])
+}
