@@ -1,64 +1,40 @@
 # Senior Engineering Explanation: `src/services/auth.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** self-service tenant registration, password login with lockout, and a helper to create
+a platform admin.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- bcryptjs
-- @/lib/db
-- @/lib/errors
-- @/lib/audit
-- @/services/rbac.service
-- @/lib/auth
+- `validatePasswordStrength` (`:8-13`): 10+ characters, a digit and a non-alphanumeric character.
+- `registerOrganizationAdmin` (`:15-112`):
+  - rejects weak passwords (`:27-32`) and an existing email with 409 (`:34-40`);
+  - hashes with bcrypt cost 12 outside the transaction (`:42`);
+  - in one transaction creates an `ACTIVE` organization, its system roles via `ensureBaseRbac`,
+    the user, the `CLIENT_ADMIN` role assignment and an audit row (`:44-89`);
+  - reloads the user with roles for the response (`:91-111`).
+- `loginWithPassword` (`:114-202`):
+  - unknown email: 401 `Invalid credentials` (`:139-141`);
+  - active lockout: 423 (`:143-145`);
+  - wrong password: increments `failedLoginAttempts`, locks for 15 minutes at 5 or more
+    (`:149-161`), 401;
+  - success: resets the counters, stamps `lastLoginAt`, writes an `auth.login` audit row.
+- `bootstrapPlatformAdmin` (`:204-234`): creates a `PLATFORM_ADMIN` user if the email is new. It
+  has no callers; the seed creates its admin directly.
 
-Detected exports / entry points:
-- registerOrganizationAdmin
-- loginWithPassword
-- bootstrapPlatformAdmin
+## Review notes
 
+- `status` is never checked, so `DISABLED` users log in (`fable/02-bugs-and-security.md#a4`).
+- Account existence is observable: register returns 409 for a taken email, a locked account
+  returns 423, and an unknown email skips bcrypt so it answers faster.
+- The email uniqueness check (`:34-40`) is a read before the transaction; two concurrent
+  registrations with the same email reach the unique index, and the loser gets a generic 500.
+- After a lock expires, `failedLoginAttempts` is still 5 or more, so the next single failure locks
+  the account again immediately (`:150-151`).
+- Public registration makes the registrant a `CLIENT_ADMIN`, who holds `tax_rules.manage` on
+  global tax rules.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 235
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- validatePasswordStrength(password) -> function declaration, internal
-- async registerOrganizationAdmin(payload, requestMeta = {}) -> function declaration, exported
-- async loginWithPassword(payload, requestMeta = {}) -> function declaration, exported
-- async bootstrapPlatformAdmin(payload) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 1, catch: 0).
-- Conditional branching is used to encode domain/path logic (if-count approx: 6).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- transactional consistency
-- audit logging
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** observe the lockout. **Check:** five wrong passwords for the client admin return 401
+four times and then 401 with `lockedUntil` set in the database; the sixth attempt, even with the
+right password, returns 423 `Account locked. Please try again later.`

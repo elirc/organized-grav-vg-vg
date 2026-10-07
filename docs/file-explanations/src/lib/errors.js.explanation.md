@@ -1,57 +1,29 @@
 # Senior Engineering Explanation: `src/lib/errors.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** the application error type and the single function that turns any thrown value into
+an HTTP response.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- next/server
+- `AppError` (`:3-10`): an `Error` with `status` and optional `details`. Services throw it
+  from any depth (404 not found, 403 tenant denied, 400 validation, 423 locked).
+- `isAppError` (`:12-14`): an `instanceof` check.
+- `toErrorResponse` (`:16-41`): an `AppError` becomes `{ ok: false, error: { message, details } }`
+  with its status; anything else is logged with `console.error("Unhandled API error", error)` and
+  returned as a generic 500 without the message, so internals do not leak.
+- `assert` (`:43-47`): throws an `AppError` when a condition is false. It has no callers.
 
-Detected exports / entry points:
-- isAppError
-- toErrorResponse
-- assert
+## Review notes
 
+- Prisma's known errors are not mapped. A unique violation (`P2002`, for example a duplicate
+  payroll period, `prisma/schema.prisma:612`) or a missing record on update (`P2025`) becomes a
+  500 instead of a 409 or 404. Mapping `Prisma.PrismaClientKnownRequestError` codes here would fix
+  that for every route at once.
+- `instanceof` works because everything runs in one module graph; it is still worth knowing that
+  it fails across realms or duplicated package copies.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 48
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- isAppError(error) -> function declaration, exported
-- toErrorResponse(error) -> function declaration, exported
-- assert(condition, status, message, details = null) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 2).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- process logging
-- HTTP response serialization
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the generic 500 path. **Check:** create two payroll runs with identical
+`periodStart`/`periodEnd` for the same tenant; the second returns 500 `Internal server error`
+and the server log shows `Unhandled API error` with a Prisma `P2002` unique-constraint error.

@@ -1,52 +1,14 @@
 # Senior Engineering Explanation: `eslint.config.mjs`
 
-## Ownership and Intent
-This repository file contributes to project structure, governance, or platform behavior.
+ESLint 9 flat config: `eslint-config-next/core-web-vitals` plus its default ignores (`.next`,
+`out`, `build`, `next-env.d.ts`). `npm run lint` runs it.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Notes
 
-Detected imports:
-- eslint/config
-- eslint-config-next/core-web-vitals
+- No rules beyond Next's defaults; nothing would flag the `event.currentTarget` after `await`
+  pattern in the panels or unused exports such as `assert` and `resolveOrg`.
 
-Detected exports / entry points:
-- None detected in this file.
+## Check
 
-
-
-## Code-Level Structure
-Approximate line count: 17
-
-Top-level declarations (module/global scope candidates):
-- const eslintConfig -> `const eslintConfig = defineConfig([`
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Module scope declarations are used for reusable constants/helpers: eslintConfig.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** add a plain `<img src="/next.svg" />` to a page and run `npm run lint`; the Next.js
+rule `@next/next/no-img-element` reports it.

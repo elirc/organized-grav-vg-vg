@@ -1,51 +1,38 @@
 # Senior Engineering Explanation: `prisma/schema.prisma`
 
-## Ownership and Intent
-This file defines persistence-level contracts and data lifecycle operations that downstream services rely on.
+**Role:** the data model: 39 models and their enums, PostgreSQL datasource from `DATABASE_URL`
+(`:5-8`).
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Map of the file
 
-Detected imports:
-- None detected in this file.
+- Enums (`:10-250`): statuses for organizations, users, employment, onboarding, contracts,
+  payroll runs and items, invoices, events and more.
+- Tenancy and identity: `Organization` (`:252-296`), `User` (`:298-340`), `Role`,
+  `Permission`, `RolePermission`, `UserRole` (`:342-392`), `Invitation`.
+- People: `Employee` (`:414-455`), `OnboardingChecklist`, `Compensation` (`:468-484`),
+  `Contractor`, `ContractorInvoice`.
+- Contracts: `ContractTemplate` (`:533-551`), `Contract`.
+- Payroll: `PayrollRun` (`:589-614`), `PayrollItem` (`:616-653`), `TaxRule` (`:655-671`),
+  `ExchangeRate`.
+- Benefits, leave (`:743-809`), time entries, compliance, billing (`:875-913`), documents,
+  notifications, integrations, audit, terminations, `DomainEvent` (`:1065-1084`),
+  `IdempotencyKey` (`:1086-1097`).
 
-Detected exports / entry points:
-- None detected in this file.
+## Design points worth knowing
 
+- Money is `BigInt` minor units everywhere; leave days and rates are `Decimal`.
+- Tenant-owned tables carry `organizationId` with `onDelete: Cascade`; audit, events and
+  integration logs use `SetNull` so history survives a deleted tenant.
+- Useful uniques: one item per employee per run (`:651`), one run per tenant and period
+  (`:612`), one balance per employee and policy (`:781`), template versions (`:549`).
 
+## Review notes
 
-## Code-Level Structure
-Approximate line count: 1098
+- `Organization.billingEmail` (`:261`) is not unique, but `prisma/seed.js:157-158` upserts on it.
+- `TaxRule` and `PricingPlan` are global; there is no per-tenant override or plan assignment.
+- About fifteen models have no code behind them (listed in `docs/improved-implementation-plan.md`).
+- No `prisma/migrations/`; the schema is applied with `db push`.
 
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
+## Check
 
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- money math using minor units
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** `npx prisma validate` passes, and `npx prisma format` produces no diff.

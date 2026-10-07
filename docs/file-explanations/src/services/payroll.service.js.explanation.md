@@ -1,90 +1,54 @@
 # Senior Engineering Explanation: `src/services/payroll.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** the payroll engine: tax computation, run lifecycle, payslip PDFs.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- node:fs
-- node:path
-- pdfkit
-- @/lib/db
-- @/lib/errors
-- @/lib/money
-- @/lib/audit
-- @/lib/events
-- @/services/context
-- @/services/notification.service
+- Helpers: `asBigInt` (`:12-14`), `toMajor` (`:16-18`, minor to float).
+- `computeProgressiveTax` (`:20-44`): for each bracket, taxes the slice between `min` and `max`
+  (open-ended when `max` is null) at `rate`, plus any `flatAmount` for every bracket the income
+  reaches.
+- `computeTaxForRule` (`:46-84`): four calculation types; result rounded back to minor units
+  (`:73`) and assigned to employee, employer, or both (`BOTH` charges the full amount to each,
+  `:83`).
+- `loadCurrentCompensation` (`:86-99`), `loadYtd` (`:101-128`): reads through `db`, not a
+  transaction.
+- `generatePayslip` (`:136-167`): writes `storage/payslips/<itemId>.pdf` with pdfkit and returns
+  the download URL.
+- Run lifecycle: `createPayrollRun` (`:222-252`), `calculatePayrollRun` (`:254-523`),
+  `approvePayrollRun` (`:525-568`), `processPayrollRun` (`:570-655`). Reads:
+  `listPayrollRuns`, `getPayrollRun`, `listPayrollItems` (`:169-220`).
 
-Detected exports / entry points:
-- listPayrollRuns
-- getPayrollRun
-- listPayrollItems
-- createPayrollRun
-- calculatePayrollRun
-- approvePayrollRun
-- processPayrollRun
+## Calculation in detail
 
+For each `ACTIVE`/`ONBOARDING`/`ON_LEAVE` employee (`:265-279`):
 
+1. Current compensation with `effectiveDate <= periodEnd`, or a `FAILED` item (`:303-337`).
+2. Gross = `amountMinor`; overtime, bonus, commission and allowances are hard-coded `0n`
+   (`:340-346`). Taxable = gross; no pre-tax deductions.
+3. YTD gross and employee tax from this calendar year's earlier runs, counting items in
+   `APPROVED`, `PAID` or `CALCULATED` (`:101-128`).
+4. Every active tax rule whose `countryCode` equals `employmentCountry` (`:352`).
+5. Net = gross - employee tax (`:371`); employer cost = gross + employer tax (`:425`).
 
-## Code-Level Structure
-Approximate line count: 656
+## Review notes
 
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
+- Pay frequency is ignored: `amountMinor` is paid per run whatever `payFrequency` says
+  (`fable/02-bugs-and-security.md#b6`).
+- Floats in the tax path (`:16-18`, `:73`).
+- YTD counts `CALCULATED` items of runs that may never be approved, and `periodStart.getFullYear()`
+  (`:102`) uses the server's local time zone.
+- No status guards on approve, process or recalculate (`fable/02-bugs-and-security.md#a5`).
+- `processPayrollRun` writes files inside a database transaction; Prisma's interactive
+  transactions have a default timeout of a few seconds, so many employees can exceed it, and a
+  rollback leaves the PDFs behind.
+- Notification URLs `/payroll/<id>` (`:517`) and `/my/payslips` (`:619`) have no pages.
+- All three mutations return rows with `BigInt` columns to `withRoute`, which cannot JSON-encode
+  them (`fable/02-bugs-and-security.md#a1`).
 
-Function-level structure:
-- asBigInt(value) -> function declaration, internal
-- toMajor(minor) -> function declaration, internal
-- computeProgressiveTax(brackets, taxableMajor) -> function declaration, internal
-- computeTaxForRule(rule, taxableMinor, ytdMinor) -> function declaration, internal
-- async loadCurrentCompensation(employeeId, periodEnd) -> function declaration, internal
-- async loadYtd(employeeId, organizationId, periodStart) -> function declaration, internal
-- ensureStorageDir() -> function declaration, internal
-- async generatePayslip(item, employee, run) -> function declaration, internal
-- async listPayrollRuns(user, organizationId = null) -> function declaration, exported
-- async getPayrollRun(user, id) -> function declaration, exported
-- async listPayrollItems(user, runId) -> function declaration, exported
-- async createPayrollRun(user, payload, requestMeta = {}) -> function declaration, exported
-- async calculatePayrollRun(user, runId, requestMeta = {}) -> function declaration, exported
-- async approvePayrollRun(user, runId, requestMeta = {}) -> function declaration, exported
-- async processPayrollRun(user, runId, requestMeta = {}) -> function declaration, exported
+## Check
 
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 1, catch: 1).
-- Conditional branching is used to encode domain/path logic (if-count approx: 15).
-- Iterative control flow is present for batch or aggregation behavior (loop-count approx: 4).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- database I/O through Prisma
-- filesystem reads/writes
-- user-facing notification side effects
-- domain event outbox side effects
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- transactional consistency
-- audit logging
-- domain event emission
-- notification dispatch
-- money math using minor units
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** pin the progressive math. **Check:** a unit test for
+`brackets = [{min:0,max:1000,rate:0.1},{min:1000,max:null,rate:0.2}]` and a taxable income of
+`250000n` minor units (2,500.00) expects `40000n` (100 + 300 = 400.00). Export the function or
+copy it into the test to do this.

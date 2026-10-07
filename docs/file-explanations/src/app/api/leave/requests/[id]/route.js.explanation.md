@@ -1,56 +1,15 @@
 # Senior Engineering Explanation: `src/app/api/leave/requests/[id]/route.js`
 
-## Ownership and Intent
-This file defines an HTTP boundary in the application layer. It should remain transport-focused: auth, validation, and delegation to domain services.
+**Contract:** `PATCH /api/leave/requests/:id`, permission `leave.approve`, body
+`leaveDecisionSchema` (`APPROVE`, `REJECT` or `CANCEL` plus an optional comment). Calls
+`decideLeaveRequest` (`src/services/leave.service.js:220-322`).
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Review notes
 
-Detected imports:
-- @/lib/api
-- @/lib/validators
-- @/services/leave.service
-- @/lib/request-meta
+- The only state machine in the app with a guard: non-`PENDING` requests return 400.
+- An approver can approve their own request; nothing compares the approver with the employee.
+- `CANCEL` requires `leave.approve`, so employees cannot withdraw their own requests.
 
-Detected exports / entry points:
-- PATCH
+## Check
 
-Detected API methods:
-- PATCH
-
-
-## Code-Level Structure
-Approximate line count: 12
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- route-level auth/permission validation
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** approving the same request twice returns 200 then 400 `Leave request is not pending`.

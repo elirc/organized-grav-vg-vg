@@ -1,57 +1,42 @@
 # Senior Engineering Explanation: `src/services/context.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** tenant resolution. Nearly every service calls `resolveOrganizationId` before touching
+tenant data.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/errors
-- @/lib/auth
+- `isPlatformAdmin` (`:4-6`): role-name check.
+- `requireOrganizationAccess(user, orgId)` (`:8-16`): platform admin passes; anyone else must
+  belong to `orgId` or gets 403. Used only by `src/services/org.service.js`.
+- `resolveOrganizationId(user, explicitId)` (`:18-36`):
+  - platform admin: must name an organization, else 400 (`:19-24`);
+  - user without an organization: 400 (`:27-29`);
+  - explicit id that is not the user's own: 403 (`:31-33`);
+  - otherwise the user's organization (`:35`).
 
-Detected exports / entry points:
-- isPlatformAdmin
-- requireOrganizationAccess
-- resolveOrganizationId
+## How it is used
 
+Two shapes appear across the services:
 
+1. **Scope a list or create:** `resolveOrganizationId(user, payload.organizationId)` and use the
+   result as the `where`/`data` tenant (for example `src/services/employee.service.js:36`).
+2. **Authorize a loaded row:** load by id, then `resolveOrganizationId(user, row.organizationId)`
+   and ignore the return value (for example `src/services/payroll.service.js:194`). A mismatch
+   throws 403.
 
-## Code-Level Structure
-Approximate line count: 37
+## Review notes
 
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
+- The function only sees the ids it is given. Secondary ids in a body (`employeeId`,
+  `templateId`, `policyId`, `managerId`) are never passed in, which is the root of the cross-tenant
+  findings in `fable/02-bugs-and-security.md#a3`.
+- For platform admins the "must name an organization" rule makes every page that calls a list
+  service without an id throw, which is why `/payroll`, `/employees`, `/admin` and others fail for
+  that account.
+- `getEmployee` repeats the comparison after calling this function
+  (`src/services/employee.service.js:110-113`); the extra check can never fire.
 
-Function-level structure:
-- isPlatformAdmin(user) -> function declaration, exported
-- requireOrganizationAccess(user, organizationId) -> function declaration, exported
-- resolveOrganizationId(user, explicitOrganizationId = null) -> function declaration, exported
+## Check
 
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 6).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see both error branches. **Check:** as a client admin, `GET /api/payroll?organizationId=<another org id>`
+returns 403 `Tenant access denied`; as the platform admin, `GET /api/payroll` with no query returns
+400 `organizationId is required for platform admin operations`.

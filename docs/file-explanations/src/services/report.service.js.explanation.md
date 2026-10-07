@@ -1,58 +1,26 @@
 # Senior Engineering Explanation: `src/services/report.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** headcount, payroll summary, turnover, and the platform admin's cross-tenant summary.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/services/context
-- @/lib/db
+- `headcountReport` (`:4-38`): `groupBy` country and department for current employees.
+- `payrollSummaryReport` (`:40-68`): last 24 runs and their summed totals.
+- `turnoverReport` (`:70-103`): hires by `createdAt`, terminations by `status = TERMINATED` and
+  `updatedAt`, optionally in a date range.
+- `platformAdminSummary` (`:105-134`): counts across all tenants; `null` for anyone else.
 
-Detected exports / entry points:
-- headcountReport
-- payrollSummaryReport
-- turnoverReport
-- platformAdminSummary
+## Review notes
 
+- Totals are summed as `Number` (`:55-57`), losing precision above 2^53 minor units.
+- Runs of every status are summed, so draft and recalculated runs inflate the totals.
+- "Hires" counts rows created in the period, not `startDate`; CSV imports and conversions all
+  count as hires on the day they ran. "Terminations" uses `updatedAt`, so any later edit to a
+  terminated employee moves their termination date.
+- `reports.export` exists as a permission, but there is no export.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 135
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async headcountReport(user, filters = {}) -> function declaration, exported
-- async payrollSummaryReport(user, filters = {}) -> function declaration, exported
-- async turnoverReport(user, filters = {}) -> function declaration, exported
-- async platformAdminSummary(user) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the `updatedAt` problem. **Check:** terminate an employee, run the turnover report
+for this month (1 termination), edit that employee's phone number next month, and run next
+month's report: it now counts the termination again.

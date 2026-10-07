@@ -1,72 +1,34 @@
 # Senior Engineering Explanation: `src/lib/validators.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** every Zod request-body schema used by `withRoute`.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- zod
+- Auth (`:5-19`): login needs an email and any password; register requires 10+ characters
+  (`:18`); the service adds the number and symbol rule (`src/services/auth.service.js:8-13`).
+- Organizations (`:21-35`): the update schema is the create schema made partial, so it includes
+  `status`.
+- Employees (`:37-65`): create allows an optional `organizationId` (for platform admins) and a
+  positive `compensationAmount`; update allows `status`, `onboardingStatus`, `managerId`, `endDate`.
+- Contracts (`:88-121`), payroll (`:123-129`), leave (`:131-155`), tax rules (`:157-170`),
+  contractors (`:172-197`), invoices (`:199-202`).
 
-Detected exports / entry points:
-- loginSchema
-- registerSchema
-- organizationCreateSchema
-- organizationUpdateSchema
-- employeeCreateSchema
-- employeeUpdateSchema
-- onboardingUpdateSchema
-- compensationCreateSchema
-- contractTemplateCreateSchema
-- contractCreateSchema
-- contractUpdateSchema
-- contractSignSchema
-- payrollCreateSchema
-- leavePolicyCreateSchema
-- leaveRequestCreateSchema
-- leaveDecisionSchema
-- taxRuleCreateSchema
-- taxRuleUpdateSchema
-- contractorCreateSchema
-- contractorUpdateSchema
-- contractorConvertSchema
-- invoiceGenerateSchema
+## Review notes
 
+- Fields are validated one at a time; no schema compares fields. `endDate >= startDate` is never
+  enforced for leave, payroll or contracts.
+- `organizationUpdateSchema` (`:35`) lets a tenant admin set their own organization's `status`.
+- `contractUpdateSchema` (`:112-116`) accepts any `status` and arbitrary `renderedContent`,
+  bypassing the send/sign flow.
+- `employmentCountry` and currency codes are free strings (`:44`, `:50`), so `us` and `US`
+  differ for the exact-match tax lookup.
+- `taxRuleCreateSchema.brackets` is `z.array(z.record(z.any()))` (`:163`): rates and limits are
+  not validated, so `{ rate: "abc" }` is stored and later becomes `NaN` math.
+- `z.record(z.any())` with one argument is the Zod 3 form; check it against the installed Zod 4
+  if you touch these schemas.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 203
-
-Top-level declarations (module/global scope candidates):
-- const idSchema -> `const idSchema = z.string().min(1);`
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Module scope declarations are used for reusable constants/helpers: idSchema.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- schema-based input validation
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** add one cross-field rule. **Check:** after adding `.refine(d => d.endDate >= d.startDate)`
+to `leaveRequestCreateSchema`, a request with `endDate` before `startDate` returns 400 instead of
+creating a request with a negative day count.

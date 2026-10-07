@@ -1,57 +1,21 @@
 # Senior Engineering Explanation: `src/components/panels/payroll-panel.js`
 
-## Ownership and Intent
-This file implements user interaction behavior in the client layer, translating UI events into backend commands and reflecting asynchronous state.
+**Role:** create payroll runs and drive Calculate, Approve and Process per run.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- react
-- next/navigation
+- `:11-22` `submitJson`, a fetch helper repeated in four other panels.
+- `:28-60` create form; dates become ISO strings at UTC midnight.
+- `:89-139` three action buttons, always enabled regardless of the run's status.
 
-Detected exports / entry points:
-- PayrollPanel
+## Review notes
 
+- `event.currentTarget.reset()` after an await (`:45`).
+- Buttons ignore status, so the UI invites approving a `DRAFT` run; the backend does not refuse.
+- Calculate/Approve/Process likely report an error after succeeding (BigInt in the JSON
+  response), which invites retries.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 151
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- PayrollPanel({ runs }) -> function declaration, exported
-- async submitJson(url, method, payload) -> arrow function, internal
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- React local component state (`useState`)
-- React transition state for async UI updates
-- form-bound transient state modeled as `FormData`
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 4, catch: 4).
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-- The module throws errors directly; callers must preserve consistent error translation.
-
-Observed side effects:
-- network I/O via HTTP fetch
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- client-side state orchestration
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** click Calculate, see the error message, then refresh the page: the run's status is
+`PENDING_APPROVAL`.

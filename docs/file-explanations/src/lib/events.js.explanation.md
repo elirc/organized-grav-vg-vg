@@ -1,51 +1,24 @@
 # Senior Engineering Explanation: `src/lib/events.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** `publishDomainEvent(tx, event)` writes a `DomainEvent` row (the transactional outbox)
+using the caller's transaction client.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- None detected in this file.
+- `:2-9` takes tenant, event type, aggregate type and id, payload, and an optional `availableAt`.
+- `:11-20` inserts the row; `status` defaults to `PENDING` and `availableAt` to now
+  (`prisma/schema.prisma:1072-1074`).
 
-Detected exports / entry points:
-- publishDomainEvent
+## Review notes
 
+- 10 call sites in the employee, contract, leave and payroll services. Contractor, billing,
+  organization and tax changes emit no events.
+- The pattern is right: the event exists if and only if the business write committed. The
+  consumer is the weak half (`src/workers/domain-events-worker.cjs`), which never retries
+  `FAILED` rows.
+- `availableAt` is never passed by any caller, so delayed delivery is supported but unused.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 22
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async publishDomainEvent(tx, event) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- domain event outbox side effects
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- domain event emission
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** prove atomicity. **Check:** make `createEmployee` throw right after
+`publishDomainEvent` (temporarily); no `Employee` and no `DomainEvent` row is left behind.

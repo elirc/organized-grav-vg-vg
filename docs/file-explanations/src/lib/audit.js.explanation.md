@@ -1,51 +1,27 @@
 # Senior Engineering Explanation: `src/lib/audit.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** one helper, `writeAuditLog(tx, entry)`, that inserts an `AuditLog` row through whatever
+Prisma client (usually a transaction) it is given.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- None detected in this file.
+- `:2-11` destructures the entry with `null` defaults for tenant, user, changes and request meta.
+- `:13-24` creates the row. Because callers pass `tx`, the audit row commits or rolls back with
+  the change it describes.
 
-Detected exports / entry points:
-- writeAuditLog
+## Review notes
 
+- 23 call sites. Most pass the raw request body as `changes`; update paths pass
+  `{ before, after }` full rows. Any sensitive field added to those models will be copied into the
+  audit log automatically.
+- `loginWithPassword` writes its audit row directly with `db.auditLog.create`
+  (`src/services/auth.service.js:189-199`), not through this helper.
+- Failed logins, tax-rule changes and permission denials are not audited.
+- A `changes` object containing a `BigInt` would fail to serialize into the JSON column;
+  payroll code converts totals to strings first (`src/services/payroll.service.js:476-480`).
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 26
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async writeAuditLog(tx, entry) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- audit logging
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see an audit trail. **Check:** after editing an employee's job title,
+`SELECT action, changes FROM "AuditLog" ORDER BY "createdAt" DESC LIMIT 1` shows
+`employee.updated` with the old and new titles inside `before` and `after`.

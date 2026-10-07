@@ -1,52 +1,20 @@
 # Senior Engineering Explanation: `src/app/(app)/layout.js`
 
-## Ownership and Intent
-This page composes authenticated workflows and data views, typically by retrieving server-side data and rendering operational panels.
+**Role:** the layout for every authenticated page. The `(app)` folder is a route group: it adds
+no URL segment, it only shares this layout.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/components/app-shell
-- @/lib/page-auth
+- `:5` `requirePageUser()` redirects to `/login` without a session.
+- `:6` renders `AppShell` (sidebar, nav, user, logout) around the page.
 
-Detected exports / entry points:
-- None detected in this file.
+## Review notes
 
+- Each page also calls `requirePageUser()`, so the user is loaded twice per page view. React's
+  `cache()` around `getServerUser` would de-duplicate it.
+- The layout is the natural place for a role check, but it receives no information about which
+  page is rendering, so per-page permissions still belong in the pages.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 8
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async AuthenticatedLayout({ children }) -> function declaration, internal
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** while logged out, every link in `src/components/app-nav.js` redirects to `/login`.

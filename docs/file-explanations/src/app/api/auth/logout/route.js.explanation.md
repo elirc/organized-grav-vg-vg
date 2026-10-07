@@ -1,55 +1,15 @@
 # Senior Engineering Explanation: `src/app/api/auth/logout/route.js`
 
-## Ownership and Intent
-This file defines an HTTP boundary in the application layer. It should remain transport-focused: auth, validation, and delegation to domain services.
+**Contract:** `POST /api/auth/logout`, no session required. Clears the cookie with
+`clearSession` (`src/lib/auth.js:60-69`).
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Review notes
 
-Detected imports:
-- next/server
-- @/lib/api
-- @/lib/auth
+- The JWT is not revoked server-side; a copy of the token stays valid until its 8-hour expiry.
+- `auth: false` means logging out without a session also returns 200, which is the right
+  behavior for an idempotent logout.
 
-Detected exports / entry points:
-- POST
+## Check
 
-Detected API methods:
-- POST
-
-
-## Code-Level Structure
-Approximate line count: 16
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- HTTP response serialization
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- route-level auth/permission validation
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** after logout, the response has `Set-Cookie: vg_session=; Max-Age=0`, and
+`GET /api/auth/me` returns 401.

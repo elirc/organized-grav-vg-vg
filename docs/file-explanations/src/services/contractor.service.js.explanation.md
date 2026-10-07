@@ -1,62 +1,26 @@
 # Senior Engineering Explanation: `src/services/contractor.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** contractor CRUD and conversion of a contractor into an employee.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/db
-- @/lib/errors
-- @/services/context
-- @/lib/audit
+- `listContractors` (`:6-18`), `createContractor` (`:20-51`, `ONBOARDING`/`INVITED`, audit).
+- `updateContractor` (`:53-83`): tenant check, `data: payload`, before/after audit.
+- `convertContractorToEmployee` (`:85-134`): in one transaction, create an employee from the
+  contractor's name, email and country plus the payload's title, department and start date; set
+  the contractor to `TERMINATED`; audit.
 
-Detected exports / entry points:
-- listContractors
-- createContractor
-- updateContractor
-- convertContractorToEmployee
+## Review notes
 
+- No status guard: converting an already `TERMINATED` contractor creates another employee.
+- The converted employee gets no onboarding checklist, no compensation, no audit/event of its own
+  as an `Employee`, and no notification, unlike `createEmployee`
+  (`src/services/employee.service.js:118-184`). The next payroll run marks them `FAILED`.
+- Contractor changes write no domain events.
+- `classificationScore` and `classificationRisk` are whatever the caller sends; nothing computes
+  them.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 135
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async listContractors(user, filters = {}) -> function declaration, exported
-- async createContractor(user, payload, requestMeta = {}) -> function declaration, exported
-- async updateContractor(user, id, payload, requestMeta = {}) -> function declaration, exported
-- async convertContractorToEmployee(user, id, payload, requestMeta = {}) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 2).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- transactional consistency
-- audit logging
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the missing guard. **Check:** click "Convert to Employee" twice on the same
+contractor; `/employees` lists two "Converted Role" employees with the same email.

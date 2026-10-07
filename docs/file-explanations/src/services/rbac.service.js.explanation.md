@@ -1,57 +1,32 @@
 # Senior Engineering Explanation: `src/services/rbac.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** creates permission rows and system roles, and assigns roles to users. Called inside
+registration and organization creation transactions.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/permissions
+- `upsertPermissions` (`:3-11`): one upsert per name in `PERMISSIONS`, sequentially (27 queries).
+- `ensureRole` (`:13-67`): find or create the role by `(name, organizationId)`, then add any
+  missing `RolePermission` rows. Skipped for the `"*"` wildcard.
+- `ensureBaseRbac(tx, organizationId)` (`:69-113`): always ensures the global `PLATFORM_ADMIN`
+  role; with an organization, also `CLIENT_ADMIN`, `CLIENT_MANAGER`, `EMPLOYEE`, `CONTRACTOR`.
+- `assignRole` (`:115-146`): finds the role by name and tenant and creates the `UserRole` if
+  missing. Throws a plain `Error` (a 500) if the role does not exist.
 
-Detected exports / entry points:
-- ensureBaseRbac
-- assignRole
+## Review notes
 
+- Every registration runs about 27 permission upserts plus role and grant queries inside its
+  transaction. Cheap at this scale, but it is setup work that belongs in a seed or migration.
+- `ensureRole` only adds grants; removing a permission from `DEFAULT_ROLE_PERMISSIONS` never
+  revokes it from existing roles.
+- The global role has `organizationId = null`. PostgreSQL treats NULLs as distinct in the
+  `@@unique([organizationId, name])` index (`prisma/schema.prisma:356`), so the find-then-create
+  at `:14-30` is the only thing preventing duplicate `PLATFORM_ADMIN` rows, and two concurrent
+  registrations can both create one.
+- There is no API for custom roles, so the "dynamic RBAC" tables hold only system roles.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 147
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async upsertPermissions(tx) -> function declaration, internal
-- async ensureRole(tx, { organizationId, name, type, permissionNames = [], isSystem = true }) -> function declaration, internal
-- async ensureBaseRbac(tx, organizationId = null) -> function declaration, exported
-- async assignRole(tx, { userId, roleName, organizationId = null }) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 6).
-- Iterative control flow is present for batch or aggregation behavior (loop-count approx: 2).
-- The module throws errors directly; callers must preserve consistent error translation.
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** confirm what a new tenant gets. **Check:** after one `/signup`,
+`SELECT name FROM "Role" WHERE "organizationId" = '<new org id>'` returns exactly the four
+client roles, and the global `PLATFORM_ADMIN` row count is still 1.

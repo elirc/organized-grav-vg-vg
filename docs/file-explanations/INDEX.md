@@ -1,39 +1,77 @@
 # File Explanation Index
 
-Generated explanation companions: 120
+One companion note per tracked file as of this snapshot: 120 notes. Each note says what the file
+is for, walks through it with line references, lists review findings, and ends with a **Check**:
+something you can run or observe to confirm your understanding.
 
-Each tracked file has a mirrored explanation document in this folder.
+How these notes were made:
 
-- [.gitignore](./.gitignore.explanation.md)
-- [README.md](./README.md.explanation.md)
-- [docker-compose.yml](./docker-compose.yml.explanation.md)
-- [docs/architecture.md](./docs/architecture.md.explanation.md)
-- [docs/automation-opportunities.md](./docs/automation-opportunities.md.explanation.md)
-- [docs/improved-implementation-plan.md](./docs/improved-implementation-plan.md.explanation.md)
-- [eslint.config.mjs](./eslint.config.mjs.explanation.md)
-- [jsconfig.json](./jsconfig.json.explanation.md)
-- [next.config.mjs](./next.config.mjs.explanation.md)
-- [package-lock.json](./package-lock.json.explanation.md)
-- [package.json](./package.json.explanation.md)
-- [postcss.config.mjs](./postcss.config.mjs.explanation.md)
-- [prisma/schema.prisma](./prisma/schema.prisma.explanation.md)
-- [prisma/seed.js](./prisma/seed.js.explanation.md)
-- [public/file.svg](./public/file.svg.explanation.md)
-- [public/globe.svg](./public/globe.svg.explanation.md)
-- [public/next.svg](./public/next.svg.explanation.md)
-- [public/vercel.svg](./public/vercel.svg.explanation.md)
-- [public/window.svg](./public/window.svg.explanation.md)
-- [src/app/(app)/admin/page.js](./src/app/(app)/admin/page.js.explanation.md)
-- [src/app/(app)/billing/page.js](./src/app/(app)/billing/page.js.explanation.md)
-- [src/app/(app)/contractors/page.js](./src/app/(app)/contractors/page.js.explanation.md)
-- [src/app/(app)/contracts/page.js](./src/app/(app)/contracts/page.js.explanation.md)
-- [src/app/(app)/dashboard/page.js](./src/app/(app)/dashboard/page.js.explanation.md)
-- [src/app/(app)/employees/page.js](./src/app/(app)/employees/page.js.explanation.md)
-- [src/app/(app)/layout.js](./src/app/(app)/layout.js.explanation.md)
-- [src/app/(app)/leave/page.js](./src/app/(app)/leave/page.js.explanation.md)
-- [src/app/(app)/notifications/page.js](./src/app/(app)/notifications/page.js.explanation.md)
-- [src/app/(app)/payroll/page.js](./src/app/(app)/payroll/page.js.explanation.md)
-- [src/app/(app)/reports/page.js](./src/app/(app)/reports/page.js.explanation.md)
+- They were first produced by `scripts/generate-file-explanations.cjs`, which wrote generic,
+  pattern-matched text (import lists, "if-count", boilerplate guidance). They have since been
+  rewritten by hand against the code. **Running that script again overwrites every note in this
+  folder** (`scripts/generate-file-explanations.cjs:337-366`), so do not run it unless you mean to
+  discard this content.
+- Line numbers refer to this snapshot. When a file changes, re-find the reference by the function
+  name next to it.
+- Checks that mention seeded data (Acme Global, Alex Worker, the Growth plan, the 20% US tax
+  rule) assume the seed completes; see `fable/02-bugs-and-security.md#b7` for the fix it needs
+  first.
+- Nothing here was produced by running the app. Where an outcome depends on runtime behavior,
+  the note says so and the Check is how you confirm it.
+- Not covered: `fable/` (the review itself) and `scripts/generate-file-explanations.cjs`, which
+  were added after the generator last ran.
+
+Suggested path: the "Start here" five, then whichever service you are about to change, then its
+routes and panel.
+
+## Start here
+
+- [src/lib/api.js](./src/lib/api.js.explanation.md)
+- [src/lib/auth.js](./src/lib/auth.js.explanation.md)
+- [src/services/context.js](./src/services/context.js.explanation.md)
+- [src/services/employee.service.js](./src/services/employee.service.js.explanation.md)
+- [src/services/payroll.service.js](./src/services/payroll.service.js.explanation.md)
+
+## Shared library (`src/lib`)
+
+- [src/lib/api.js](./src/lib/api.js.explanation.md)
+- [src/lib/audit.js](./src/lib/audit.js.explanation.md)
+- [src/lib/auth.js](./src/lib/auth.js.explanation.md)
+- [src/lib/crypto.js](./src/lib/crypto.js.explanation.md)
+- [src/lib/csv.js](./src/lib/csv.js.explanation.md)
+- [src/lib/db.js](./src/lib/db.js.explanation.md)
+- [src/lib/errors.js](./src/lib/errors.js.explanation.md)
+- [src/lib/events.js](./src/lib/events.js.explanation.md)
+- [src/lib/money.js](./src/lib/money.js.explanation.md)
+- [src/lib/page-auth.js](./src/lib/page-auth.js.explanation.md)
+- [src/lib/permissions.js](./src/lib/permissions.js.explanation.md)
+- [src/lib/queue.js](./src/lib/queue.js.explanation.md)
+- [src/lib/request-meta.js](./src/lib/request-meta.js.explanation.md)
+- [src/lib/validators.js](./src/lib/validators.js.explanation.md)
+
+## Domain services (`src/services`)
+
+- [src/services/auth.service.js](./src/services/auth.service.js.explanation.md)
+- [src/services/billing.service.js](./src/services/billing.service.js.explanation.md)
+- [src/services/context.js](./src/services/context.js.explanation.md)
+- [src/services/contract.service.js](./src/services/contract.service.js.explanation.md)
+- [src/services/contractor.service.js](./src/services/contractor.service.js.explanation.md)
+- [src/services/dashboard.service.js](./src/services/dashboard.service.js.explanation.md)
+- [src/services/employee.service.js](./src/services/employee.service.js.explanation.md)
+- [src/services/leave.service.js](./src/services/leave.service.js.explanation.md)
+- [src/services/notification.service.js](./src/services/notification.service.js.explanation.md)
+- [src/services/org.service.js](./src/services/org.service.js.explanation.md)
+- [src/services/payroll.service.js](./src/services/payroll.service.js.explanation.md)
+- [src/services/rbac.service.js](./src/services/rbac.service.js.explanation.md)
+- [src/services/report.service.js](./src/services/report.service.js.explanation.md)
+- [src/services/tax.service.js](./src/services/tax.service.js.explanation.md)
+
+## Worker
+
+- [src/workers/domain-events-worker.cjs](./src/workers/domain-events-worker.cjs.explanation.md)
+
+## API routes (`src/app/api`)
+
 - [src/app/api/auth/login/route.js](./src/app/api/auth/login/route.js.explanation.md)
 - [src/app/api/auth/logout/route.js](./src/app/api/auth/logout/route.js.explanation.md)
 - [src/app/api/auth/me/route.js](./src/app/api/auth/me/route.js.explanation.md)
@@ -76,12 +114,29 @@ Each tracked file has a mirrored explanation document in this folder.
 - [src/app/api/reports/turnover/route.js](./src/app/api/reports/turnover/route.js.explanation.md)
 - [src/app/api/tax-rules/[id]/route.js](./src/app/api/tax-rules/[id]/route.js.explanation.md)
 - [src/app/api/tax-rules/route.js](./src/app/api/tax-rules/route.js.explanation.md)
+
+## Pages and layouts (`src/app`)
+
+- [src/app/(app)/admin/page.js](./src/app/(app)/admin/page.js.explanation.md)
+- [src/app/(app)/billing/page.js](./src/app/(app)/billing/page.js.explanation.md)
+- [src/app/(app)/contractors/page.js](./src/app/(app)/contractors/page.js.explanation.md)
+- [src/app/(app)/contracts/page.js](./src/app/(app)/contracts/page.js.explanation.md)
+- [src/app/(app)/dashboard/page.js](./src/app/(app)/dashboard/page.js.explanation.md)
+- [src/app/(app)/employees/page.js](./src/app/(app)/employees/page.js.explanation.md)
+- [src/app/(app)/layout.js](./src/app/(app)/layout.js.explanation.md)
+- [src/app/(app)/leave/page.js](./src/app/(app)/leave/page.js.explanation.md)
+- [src/app/(app)/notifications/page.js](./src/app/(app)/notifications/page.js.explanation.md)
+- [src/app/(app)/payroll/page.js](./src/app/(app)/payroll/page.js.explanation.md)
+- [src/app/(app)/reports/page.js](./src/app/(app)/reports/page.js.explanation.md)
 - [src/app/favicon.ico](./src/app/favicon.ico.explanation.md)
 - [src/app/globals.css](./src/app/globals.css.explanation.md)
 - [src/app/layout.js](./src/app/layout.js.explanation.md)
 - [src/app/login/page.js](./src/app/login/page.js.explanation.md)
 - [src/app/page.js](./src/app/page.js.explanation.md)
 - [src/app/signup/page.js](./src/app/signup/page.js.explanation.md)
+
+## Components (`src/components`)
+
 - [src/components/app-nav.js](./src/components/app-nav.js.explanation.md)
 - [src/components/app-shell.js](./src/components/app-shell.js.explanation.md)
 - [src/components/forms/login-form.js](./src/components/forms/login-form.js.explanation.md)
@@ -95,32 +150,28 @@ Each tracked file has a mirrored explanation document in this folder.
 - [src/components/panels/leave-panel.js](./src/components/panels/leave-panel.js.explanation.md)
 - [src/components/panels/notifications-panel.js](./src/components/panels/notifications-panel.js.explanation.md)
 - [src/components/panels/payroll-panel.js](./src/components/panels/payroll-panel.js.explanation.md)
-- [src/lib/api.js](./src/lib/api.js.explanation.md)
-- [src/lib/audit.js](./src/lib/audit.js.explanation.md)
-- [src/lib/auth.js](./src/lib/auth.js.explanation.md)
-- [src/lib/crypto.js](./src/lib/crypto.js.explanation.md)
-- [src/lib/csv.js](./src/lib/csv.js.explanation.md)
-- [src/lib/db.js](./src/lib/db.js.explanation.md)
-- [src/lib/errors.js](./src/lib/errors.js.explanation.md)
-- [src/lib/events.js](./src/lib/events.js.explanation.md)
-- [src/lib/money.js](./src/lib/money.js.explanation.md)
-- [src/lib/page-auth.js](./src/lib/page-auth.js.explanation.md)
-- [src/lib/permissions.js](./src/lib/permissions.js.explanation.md)
-- [src/lib/queue.js](./src/lib/queue.js.explanation.md)
-- [src/lib/request-meta.js](./src/lib/request-meta.js.explanation.md)
-- [src/lib/validators.js](./src/lib/validators.js.explanation.md)
-- [src/services/auth.service.js](./src/services/auth.service.js.explanation.md)
-- [src/services/billing.service.js](./src/services/billing.service.js.explanation.md)
-- [src/services/context.js](./src/services/context.js.explanation.md)
-- [src/services/contract.service.js](./src/services/contract.service.js.explanation.md)
-- [src/services/contractor.service.js](./src/services/contractor.service.js.explanation.md)
-- [src/services/dashboard.service.js](./src/services/dashboard.service.js.explanation.md)
-- [src/services/employee.service.js](./src/services/employee.service.js.explanation.md)
-- [src/services/leave.service.js](./src/services/leave.service.js.explanation.md)
-- [src/services/notification.service.js](./src/services/notification.service.js.explanation.md)
-- [src/services/org.service.js](./src/services/org.service.js.explanation.md)
-- [src/services/payroll.service.js](./src/services/payroll.service.js.explanation.md)
-- [src/services/rbac.service.js](./src/services/rbac.service.js.explanation.md)
-- [src/services/report.service.js](./src/services/report.service.js.explanation.md)
-- [src/services/tax.service.js](./src/services/tax.service.js.explanation.md)
-- [src/workers/domain-events-worker.cjs](./src/workers/domain-events-worker.cjs.explanation.md)
+
+## Database (`prisma`)
+
+- [prisma/schema.prisma](./prisma/schema.prisma.explanation.md)
+- [prisma/seed.js](./prisma/seed.js.explanation.md)
+
+## Project configuration and docs
+
+- [.gitignore](./.gitignore.explanation.md)
+- [README.md](./README.md.explanation.md)
+- [docker-compose.yml](./docker-compose.yml.explanation.md)
+- [docs/architecture.md](./docs/architecture.md.explanation.md)
+- [docs/automation-opportunities.md](./docs/automation-opportunities.md.explanation.md)
+- [docs/improved-implementation-plan.md](./docs/improved-implementation-plan.md.explanation.md)
+- [eslint.config.mjs](./eslint.config.mjs.explanation.md)
+- [jsconfig.json](./jsconfig.json.explanation.md)
+- [next.config.mjs](./next.config.mjs.explanation.md)
+- [package-lock.json](./package-lock.json.explanation.md)
+- [package.json](./package.json.explanation.md)
+- [postcss.config.mjs](./postcss.config.mjs.explanation.md)
+- [public/file.svg](./public/file.svg.explanation.md)
+- [public/globe.svg](./public/globe.svg.explanation.md)
+- [public/next.svg](./public/next.svg.explanation.md)
+- [public/vercel.svg](./public/vercel.svg.explanation.md)
+- [public/window.svg](./public/window.svg.explanation.md)

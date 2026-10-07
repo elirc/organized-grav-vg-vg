@@ -1,57 +1,30 @@
 # Senior Engineering Explanation: `src/lib/money.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** conversions between decimal amounts and integer minor units (cents), which is how
+every money column is stored (`BigInt`, for example `prisma/schema.prisma:620-640`).
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- None detected in this file.
+- `toMinorUnits(value)` (`:3-15`): `null`, `undefined` and `""` become `0n` (`:4-6`); strings are
+  parsed with `parseFloat`; `NaN` becomes `0n` (`:10-12`); otherwise
+  `BigInt(Math.round(value * 100))`.
+- `fromMinorUnits` (`:17-23`): `Number(value) / 100`.
+- `sumMinor` (`:25-27`) and `minorToCurrency` (`:29-36`): a BigInt sum and an `Intl.NumberFormat`
+  currency formatter. Neither has a caller.
 
-Detected exports / entry points:
-- toMinorUnits
-- fromMinorUnits
-- sumMinor
-- minorToCurrency
+## Review notes
 
+- Returning `0n` for unparseable input (`:10-12`) turns a bad salary into a zero salary with no
+  error. Throwing would be safer for money.
+- The multiplier is fixed at 100 (`:1`). Currencies with zero (JPY) or three (KWD) minor digits
+  would be stored wrongly, and `Compensation.currency` is free text.
+- `value * 100` happens in floating point before rounding. `Math.round` hides the usual cases
+  (`0.29 * 100 = 28.999...`), which is why it is there.
+- The UI prints money with ad-hoc `Number(x) / 100` in several panels instead of
+  `minorToCurrency`, so formatting is inconsistent.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 37
-
-Top-level declarations (module/global scope candidates):
-- const MINOR_UNIT_MULTIPLIER -> `const MINOR_UNIT_MULTIPLIER = 100;`
-
-Function-level structure:
-- toMinorUnits(value) -> function declaration, exported
-- fromMinorUnits(value) -> function declaration, exported
-- sumMinor(values) -> function declaration, exported
-- minorToCurrency(value, currency = "USD") -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Module scope declarations are used for reusable constants/helpers: MINOR_UNIT_MULTIPLIER.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 3).
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- money math using minor units
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** pin the edge cases. **Check:** a unit test asserting `toMinorUnits("19.99") === 1999n`,
+`toMinorUnits(0.29) === 29n`, `toMinorUnits("abc") === 0n` (documenting current behavior), and
+`minorToCurrency(123456n)` equals `"$1,234.56"`.

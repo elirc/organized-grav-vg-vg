@@ -1,65 +1,31 @@
 # Senior Engineering Explanation: `src/services/org.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** list, read, create and update organizations.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/db
-- @/lib/errors
-- @/lib/audit
-- @/services/context
-- @/services/rbac.service
+- `listOrganizations` (`:7-21`): all organizations for the platform admin; otherwise only the
+  user's own.
+- `getOrganization` (`:23-37`): `requireOrganizationAccess` first, then load.
+- `createOrganization` (`:39-66`): platform admin only (`:40-42`); creates the organization and its
+  roles in one transaction with an audit row.
+- `updateOrganization` (`:68-98`): access check, then load, update with the request body, and
+  audit the before/after rows.
+- `resolveOrg` (`:100-102`): an alias of `resolveOrganizationId` with no callers.
 
-Detected exports / entry points:
-- listOrganizations
-- getOrganization
-- createOrganization
-- updateOrganization
-- resolveOrg
+## Review notes
 
+- `createOrganization` writes `data: payload` (`:46`); the create schema
+  (`src/lib/validators.js:21-33`) decides which columns that can touch.
+- `updateOrganization` also writes `data: payload` (`:77-80`), and the update schema includes
+  `status`, so a `CLIENT_ADMIN` (who holds `organizations.manage`) can change a `SUSPENDED` tenant
+  back to `ACTIVE`.
+- The route also requires `organizations.manage` for `POST /api/organizations`, and
+  `CLIENT_ADMIN` holds it, so the explicit platform-admin check at `:40-42` is what actually
+  protects creation. Good that it is there.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 103
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async listOrganizations(user) -> function declaration, exported
-- async getOrganization(user, id) -> function declaration, exported
-- async createOrganization(user, payload, requestMeta = {}) -> function declaration, exported
-- async updateOrganization(user, id, payload, requestMeta = {}) -> function declaration, exported
-- resolveOrg(user, explicitOrganizationId = null) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 4).
-- Failures are surfaced with typed application errors, preserving stable API error semantics.
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- transactional consistency
-- audit logging
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the self-service status change. **Check:** as the seeded client admin,
+`PATCH /api/organizations/<own id>` with `{"status":"SUSPENDED"}` returns 200, and the same call
+with `"ACTIVE"` restores it.

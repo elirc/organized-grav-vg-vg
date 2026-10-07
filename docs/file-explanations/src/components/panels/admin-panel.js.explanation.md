@@ -1,57 +1,20 @@
 # Senior Engineering Explanation: `src/components/panels/admin-panel.js`
 
-## Ownership and Intent
-This file implements user interaction behavior in the client layer, translating UI events into backend commands and reflecting asynchronous state.
+**Role:** create tax rules and contract templates; list tax rules, templates and organizations.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- react
-- next/navigation
+- `:29-80` tax-rule form: country, type, payer, calculation type, a single `rate` and an
+  effective date. Only one bracket can be entered, so progressive rules cannot be created here.
+- `:85-124` template form: name, type, content with merge tags.
+- `:130-179` read-only lists.
 
-Detected exports / entry points:
-- AdminPanel
+## Review notes
 
+- `event.currentTarget.reset()` after an await (`:47`, `:100`) throws on success.
+- The tax-rule form edits global rules that every tenant uses.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 183
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- AdminPanel({ taxRules, templates, organizations }) -> function declaration, exported
-- async submitJson(url, method, payload) -> arrow function, internal
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- React local component state (`useState`)
-- React transition state for async UI updates
-- form-bound transient state modeled as `FormData`
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 2, catch: 2).
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-- The module throws errors directly; callers must preserve consistent error translation.
-
-Observed side effects:
-- network I/O via HTTP fetch
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- client-side state orchestration
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** after fixing the reset bug, creating a template clears the form and the new template
+appears in the list with `v1`.

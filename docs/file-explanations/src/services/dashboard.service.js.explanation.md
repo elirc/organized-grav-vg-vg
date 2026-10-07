@@ -1,53 +1,23 @@
 # Senior Engineering Explanation: `src/services/dashboard.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** the numbers on `/dashboard` and `GET /api/dashboard`.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/db
-- @/services/context
-- @/services/report.service
+- Platform admin: returns `platformAdminSummary` with `scope: "platform"` (`:6-12`).
+- Everyone else (`:14-63`): five parallel queries for headcount, onboarding in progress, runs
+  pending approval, the user's unread notifications, and the latest run by `periodEnd`.
 
-Detected exports / entry points:
-- getDashboardData
+## Review notes
 
+- This is the only tenant-scoped service that handles the platform admin without an
+  organization id, which is why `/dashboard` is one of the two pages that work for that account.
+- `lastPayrollRun` is a full row with `BigInt` totals: fine for the page (RSC), a 500 for
+  `GET /api/dashboard` once the run has been calculated.
+- "Pending onboarding" counts `IN_PROGRESS` and `PENDING_REVIEW` but not `INVITED`, which is the
+  status every new employee starts in, so new hires do not show up there.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 65
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async getDashboardData(user) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-
-Observed side effects:
-- database I/O through Prisma
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- None detected in this file.
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** match a card to its query. **Check:** create one employee; "Headcount" goes up by one
+and "Pending Onboarding" does not change until their checklist is updated.

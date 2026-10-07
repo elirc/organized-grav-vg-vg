@@ -1,64 +1,27 @@
 # Senior Engineering Explanation: `src/services/notification.service.js`
 
-## Ownership and Intent
-This file owns core domain behavior. It is where business invariants, transaction boundaries, and side effects must be coordinated coherently.
+**Role:** create in-app notifications, list them, mark them read.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @/lib/db
-- @/services/context
-- @/lib/queue
+- `createNotification` (`:5-30`): inserts a row, then `enqueue("notification.dispatch", ...)`.
+- `listNotifications` (`:32-42`): the user's latest 100.
+- `markNotificationRead` (`:44-55`), `markAllNotificationsRead` (`:57-68`): `updateMany` filtered
+  by `userId`, so a user cannot mark someone else's notification.
+- `getOrganizationUsers` (`:70-84`): no callers.
 
-Detected exports / entry points:
-- createNotification
-- listNotifications
-- markNotificationRead
-- markAllNotificationsRead
-- getOrganizationUsers
+## Review notes
 
+- Two ways to create notifications exist: this function and direct `tx.notification.create`
+  inside transactions (`src/services/employee.service.js:304-313`,
+  `src/services/payroll.service.js:610-621`). The direct ones are never enqueued.
+- `createNotification` runs outside any transaction; callers invoke it after their transaction
+  commits, so a failure here turns a successful operation into a 500.
+- `markNotificationRead` returns `{ count }`; marking a nonexistent id returns 200 with
+  `count: 0` rather than 404.
+- `NotificationPreference` is never read.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 85
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- async createNotification({
-  userId, type = "IN_APP", category = "SYSTEM", title, body, actionUrl = null, }) -> function declaration, exported
-- async listNotifications(user) -> function declaration, exported
-- async markNotificationRead(user, id) -> function declaration, exported
-- async markAllNotificationsRead(user) -> function declaration, exported
-- async getOrganizationUsers(user, explicitOrganizationId = null) -> function declaration, exported
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- database I/O through Prisma
-- asynchronous job queue interactions
-- user-facing notification side effects
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- notification dispatch
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** confirm per-user isolation. **Check:** as user A, `PATCH /api/notifications/<B's id>/read`
+returns `{ ok: true, data: { count: 0 } }` and B's row stays unread.

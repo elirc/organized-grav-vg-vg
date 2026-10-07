@@ -1,58 +1,22 @@
 # Senior Engineering Explanation: `src/components/panels/contracts-panel.js`
 
-## Ownership and Intent
-This file implements user interaction behavior in the client layer, translating UI events into backend commands and reflecting asynchronous state.
+**Role:** create contracts, list them, Send and Sign buttons.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- react
-- next/navigation
+- `:30-52` create form: template, employee or contractor, effective date.
+- `:114-150` Send and Sign. Sign posts a fixed `signature: "typed-signature"` and
+  `typedName: "Accepted in app"` (`:137-140`).
 
-Detected exports / entry points:
-- ContractsPanel
+## Review notes
 
+- The admin signs on the worker's behalf; there is no signer-facing view.
+- `event.currentTarget.reset()` after an await (`:46`).
+- Only the template and effective date are `required` (`:54`, `:62`); the employee and
+  contractor selects are optional, so the API's "Either employeeId or contractorId is required"
+  400 is the only guard.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 162
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- ContractsPanel({ contracts, templates, employees, contractors }) -> function declaration, exported
-- async submitJson(url, method, payload) -> arrow function, internal
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- React local component state (`useState`)
-- React transition state for async UI updates
-- form-bound transient state modeled as `FormData`
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 3, catch: 3).
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-- The module throws errors directly; callers must preserve consistent error translation.
-
-Observed side effects:
-- network I/O via HTTP fetch
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- client-side state orchestration
-- background processing
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** submit with a template and date but no worker; the panel shows
+"Either employeeId or contractorId is required".

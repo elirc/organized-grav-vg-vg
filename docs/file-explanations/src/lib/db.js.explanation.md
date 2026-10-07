@@ -1,54 +1,23 @@
 # Senior Engineering Explanation: `src/lib/db.js`
 
-## Ownership and Intent
-This file provides shared infrastructure primitives. Its contracts are reused widely, so compatibility discipline is important.
+**Role:** exports the single `PrismaClient` instance (`db`) every service imports.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- @prisma/client
+- `:3` uses `globalThis` as a cache.
+- `:5-9` reuses `globalThis.db` if present, otherwise creates a client. In development it logs
+  every query, error and warning; otherwise only errors (`:8`).
+- `:11-13` outside production, stores the client on `globalThis`. Next.js dev mode re-evaluates
+  modules on hot reload; without this, every reload would open a new connection pool.
 
-Detected exports / entry points:
-- db
+## Review notes
 
+- Development query logging is verbose: the payroll calculation issues several queries per
+  employee (`src/services/payroll.service.js:301-421`), which floods the terminal.
+- The worker (`src/workers/domain-events-worker.cjs:3`) and the seed (`prisma/seed.js:4`) create
+  their own clients because they are CommonJS scripts run outside Next.js.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 14
-
-Top-level declarations (module/global scope candidates):
-- const globalForPrisma -> `const globalForPrisma = globalThis;`
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Module scope declarations are used for reusable constants/helpers: globalForPrisma.
-- The file intentionally leverages process-level scope (`globalThis`) to cache expensive objects across hot reloads or repeated imports.
-- Database client lifecycle is stabilized by module/global scope, avoiding per-request client re-instantiation.
-
-State concepts observed:
-- process-wide/global cache via `globalThis`
-- configuration state sourced from environment variables
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Conditional branching is used to encode domain/path logic (if-count approx: 1).
-
-Observed side effects:
-- no major external side effects detected
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- database client lifecycle management
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the dev logging. **Check:** with `NODE_ENV=development` (the default for
+`npm run dev`), loading `/employees` prints `prisma:query SELECT ...` lines in the terminal.

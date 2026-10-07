@@ -1,56 +1,29 @@
 # Senior Engineering Explanation: `src/workers/domain-events-worker.cjs`
 
-## Ownership and Intent
-This repository file contributes to project structure, governance, or platform behavior.
+**Role:** the outbox consumer, run with `npm run worker:events` (once) or
+`npm run worker:events -- --loop`.
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- None detected in this file.
+- `:3` its own `PrismaClient` (CommonJS, outside Next.js).
+- `processEvent` (`:5-15`): writes an `IntegrationLog` row with status `SUCCESS`. That is the
+  entire "integration".
+- `runOnce` (`:17-64`): selects up to 50 `PENDING` events with `availableAt <= now`, oldest first;
+  for each, sets `PROCESSING` and increments `attempts`, calls `processEvent`, then sets
+  `PROCESSED`. On error it sets `FAILED`, or `DEAD_LETTER` when `attempts + 1 >= 10`.
+- `main` (`:66-82`): one pass, or an endless loop that sleeps 2 seconds when a pass found nothing.
 
-Detected exports / entry points:
-- None detected in this file.
+## Review notes
 
+- Only `PENDING` is selected (`:20`), so `FAILED` rows are never retried and `DEAD_LETTER` is
+  unreachable in practice.
+- No claim step: two workers can select the same rows and both process them. Use
+  `FOR UPDATE SKIP LOCKED` via raw SQL, or a conditional `updateMany` that checks the old status.
+- A crash after `:33-39` leaves the event in `PROCESSING` forever.
+- `processEvent` has no per-type dispatch. Adding real handlers means a `switch` on
+  `event.eventType` with idempotent handlers, since delivery is at-least-once.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 92
-
-Top-level declarations (module/global scope candidates):
-- const prisma -> `const prisma = new PrismaClient();`
-
-Function-level structure:
-- async processEvent(event) -> function declaration, internal
-- async runOnce() -> function declaration, internal
-- async main() -> function declaration, internal
-
-## Scope and State Model
-Scope analysis:
-- Module scope declarations are used for reusable constants/helpers: prisma.
-- Database client lifecycle is stabilized by module/global scope, avoiding per-request client re-instantiation.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Structured error boundaries are present (try: 1, catch: 2).
-- Conditional branching is used to encode domain/path logic (if-count approx: 2).
-- Iterative control flow is present for batch or aggregation behavior (loop-count approx: 2).
-
-Observed side effects:
-- process logging
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- database client lifecycle management
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Goal:** see the retry gap. **Check:** make `processEvent` throw, run the worker twice, and
+`SELECT status, attempts FROM "DomainEvent"` shows `FAILED` with `attempts = 1` after both runs.

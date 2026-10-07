@@ -1,58 +1,21 @@
 # Senior Engineering Explanation: `src/app/api/auth/login/route.js`
 
-## Ownership and Intent
-This file defines an HTTP boundary in the application layer. It should remain transport-focused: auth, validation, and delegation to domain services.
+**Contract:** `POST /api/auth/login`, no session required (`auth: false`), body `loginSchema`
+(`src/lib/validators.js:5-8`). Calls `loginWithPassword` (`src/services/auth.service.js:114`).
 
-## How the Implementation Works
-The file is structured around explicit module responsibilities and clear entry points. Import dependencies define collaboration boundaries, while exported symbols provide the public contract consumed by other layers.
+## Walkthrough
 
-Detected imports:
-- next/server
-- @/lib/api
-- @/lib/validators
-- @/services/auth.service
-- @/lib/request-meta
-- @/lib/auth
+- `:8-9` validates and logs in, passing IP and user agent for the audit row.
+- `:11-16` builds its own `NextResponse` so it can attach a cookie; `withRoute` passes a
+  `Response` through unchanged (`src/lib/api.js:52-54`).
+- `:18-21` signs a JWT with `sub` (user id) and `org` (organization id) into `vg_session`.
 
-Detected exports / entry points:
-- POST
+## Review notes
 
-Detected API methods:
-- POST
+- The response body includes the full normalized user, including the `organization` row.
+- No rate limit beyond the per-account lockout, so many accounts can be tried in parallel.
 
+## Check
 
-## Code-Level Structure
-Approximate line count: 25
-
-Top-level declarations (module/global scope candidates):
-- None detected in this file.
-
-Function-level structure:
-- None detected in this file.
-
-## Scope and State Model
-Scope analysis:
-- Scope usage is conventional: constants and helpers in module scope, request-specific values inside function scope.
-
-State concepts observed:
-- None detected in this file.
-
-## Control Flow and Side Effects
-Control-flow profile:
-- Control flow is mostly linear and declarative in this file.
-
-Observed side effects:
-- HTTP response serialization
-
-## Why It Is Implemented This Way
-Design choices in this file prioritize explicit contracts, predictable side effects, and maintainable layering. This helps the team evolve behavior without hidden coupling.
-
-Cross-cutting concerns currently present:
-- route-level auth/permission validation
-
-## Safe Extension Guidance
-- Keep business rules in the owning layer (service layer for domain policy, route layer for transport policy, UI layer for interaction policy).
-- Preserve existing exported contracts when possible; when changes are required, update all call sites in the same change set.
-- Keep module-scope mutable state minimal and intentional; prefer explicit factories for complex lifecycle state.
-- For stateful UI files, keep pending/error/success transitions explicit and deterministic.
-- For backend files with side effects, maintain idempotency and transactional coherence to avoid partial writes.
+**Check:** a successful login returns 200 with a `Set-Cookie: vg_session=...; HttpOnly; SameSite=lax`
+header; a wrong password returns 401 `Invalid credentials` and no cookie.
